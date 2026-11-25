@@ -1,38 +1,64 @@
-// The Excuse That Almost Works.
+// A text to the boss that nearly gets away with it.
 //
-// One line a gamer texts the boss to skip work during GTA 6 launch week.
-// A tired manager has heard every excuse twice, so this one hides behind
-// the dullest, most specific bureaucratic detail it can find: a council
-// damp survey. Miss the slot and you are back at the bottom of the
-// waiting list until February — the dread is the joke. No setup, no
-// explanation, no signature; just the text, sent in a hurry.
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+// The trick is picking an excuse too tedious to question: a boiler
+// engineer who will only turn up in a four-hour window, and a leak
+// that has already reached the ceiling below. Nobody cross-examines
+// a tradesman's timetable, and nobody volunteers to sit under a
+// dripping ceiling in someone else's place — so the sender just
+// states the timetable as if it were weather, and stays home.
+import * as fs from "node:fs";
+import * as path from "node:path";
 
-const ENTRY =
-  "Council damp survey Thursday, miss it and I'm back at the bottom of the list till February again.";
+// Gate from the competition kit: one line, 1-140 chars, max 20 words.
+const GATE = { minChars: 1, maxChars: 140, maxWords: 20 } as const;
 
-// The gate: one line, 1-140 characters, at most 20 words, not only whitespace.
-const MAX_CHARS = 140;
-const MAX_WORDS = 20;
-if (ENTRY.length < 1 || ENTRY.length > MAX_CHARS) {
-  throw new Error(
-    `entry is ${ENTRY.length} characters, outside the 1-${MAX_CHARS} gate`,
-  );
-}
-if (/[\r\n]/.test(ENTRY) || ENTRY.trim() !== ENTRY || ENTRY.trim() === "") {
-  throw new Error("entry must be a single non-blank line with no newline");
-}
-const words = ENTRY.split(/\s+/).filter(Boolean);
-if (words.length > MAX_WORDS) {
-  throw new Error(`entry is ${words.length} words, over the ${MAX_WORDS}-word cap`);
+// The line is kept in pieces so each clause can be read on its own;
+// joining them with single spaces is the only assembly step.
+const CLAUSES: readonly string[] = [
+  "Boiler engineer Thursday 8-12,",
+  "water's dripping through the kitchen ceiling",
+  "and someone's got to be in.",
+];
+
+function buildEntry(): string {
+  return CLAUSES.join(" ");
 }
 
-// The sealed scorer reads $MAKEFUN_OUTPUT_DIR/entry.txt; default /output.
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, "entry.txt"), ENTRY, "utf8");
+function findProblems(text: string): string[] {
+  const problems: string[] = [];
+  if (text.length < GATE.minChars || text.length > GATE.maxChars) {
+    problems.push(
+      `length ${text.length} is outside ${GATE.minChars}-${GATE.maxChars}`,
+    );
+  }
+  if (text.includes("\n") || text.includes("\r")) {
+    problems.push("must be one line");
+  }
+  if (text !== text.trim() || text.trim().length === 0) {
+    problems.push("must not be blank or padded");
+  }
+  const wordCount = text.split(/\s+/).filter((w) => w.length > 0).length;
+  if (wordCount > GATE.maxWords) {
+    problems.push(`${wordCount} words exceeds the ${GATE.maxWords}-word cap`);
+  }
+  return problems;
+}
 
-// stdout carries the entry plus a newline for a human reader; the file
-// carries exactly the entry bytes, no trailing newline, for the scorer.
-process.stdout.write(ENTRY + "\n");
+function resolveOutputDir(): string {
+  const fromEnv = process.env.MAKEFUN_OUTPUT_DIR;
+  return fromEnv !== undefined && fromEnv !== "" ? fromEnv : "/output";
+}
+
+function main(): void {
+  const entry = buildEntry();
+  const problems = findProblems(entry);
+  if (problems.length > 0) {
+    throw new Error(`entry rejected: ${problems.join("; ")}`);
+  }
+  const outDir = resolveOutputDir();
+  fs.mkdirSync(outDir, { recursive: true });
+  fs.writeFileSync(path.join(outDir, "entry.txt"), entry, "utf8");
+  console.log(entry);
+}
+
+main();
